@@ -166,6 +166,7 @@
         <div class="section">
             <h2>📝 Transcribed Objection</h2>
             <div id="transcriptionDisplay" class="display-area empty">Spoken objection will appear here...</div>
+            <button id="clearButton" onclick="clearTranscription()" style="margin-top: 10px;" disabled>Clear Transcription</button>
         </div>
 
         <!-- System Prompt Configuration -->
@@ -201,24 +202,32 @@
         function initializeSpeechRecognition() {
             // Check if the browser supports speech recognition
             if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-                showStatus('speechStatus', 'Speech recognition not supported in this browser', 'error');
+                showStatus('speechStatus', 'Speech recognition not supported in this browser. Please use Chrome, Edge, or Safari.', 'error');
                 document.getElementById('speechButton').disabled = true;
                 return;
             }
 
-            // Create speech recognition instance (webkit prefix for Chrome/Safari)
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            recognition = new SpeechRecognition();
+            try {
+                // Create speech recognition instance (webkit prefix for Chrome/Safari)
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
 
-            // Configure speech recognition settings
-            recognition.continuous = true;        // Keep listening until manually stopped
-            recognition.interimResults = true;   // Show results as user speaks
-            recognition.lang = 'en-US';         // Set language to English
+                // Configure speech recognition settings
+                recognition.continuous = true;        // Keep listening until manually stopped
+                recognition.interimResults = true;   // Show results as user speaks
+                recognition.lang = 'en-US';         // Set language to English
+                recognition.maxAlternatives = 1;     // Only need the best result
+            } catch (error) {
+                console.error('Error initializing speech recognition:', error);
+                showStatus('speechStatus', 'Failed to initialize speech recognition', 'error');
+                document.getElementById('speechButton').disabled = true;
+                return;
+            }
 
             // Handle speech recognition results
             recognition.onresult = function(event) {
                 let interimTranscript = '';
-                let finalTranscript = '';
+                let finalTranscript = currentTranscription; // Start with existing final transcript
 
                 // Process all speech recognition results
                 for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -231,18 +240,30 @@
                     }
                 }
 
-                // Update the display with current transcription
+                // Update the stored final transcription
                 currentTranscription = finalTranscript;
-                const displayText = finalTranscript + interimTranscript;
                 
-                if (displayText.trim()) {
-                    document.getElementById('transcriptionDisplay').textContent = displayText;
-                    document.getElementById('transcriptionDisplay').classList.remove('empty');
-                    document.getElementById('generateButton').disabled = false;
+                // Create display text with final transcript + interim (interim in different style)
+                const displayDiv = document.getElementById('transcriptionDisplay');
+                const fullText = finalTranscript + interimTranscript;
+                
+                if (fullText.trim()) {
+                    // Create HTML with final text and interim text styled differently
+                    if (interimTranscript) {
+                        displayDiv.innerHTML = finalTranscript + '<span style="color: #7f8c8d; font-style: italic;">' + interimTranscript + '</span>';
+                    } else {
+                        displayDiv.textContent = finalTranscript;
+                    }
+                    displayDiv.classList.remove('empty');
+                    
+                    // Enable buttons based on transcript availability
+                    document.getElementById('generateButton').disabled = !finalTranscript.trim();
+                    document.getElementById('clearButton').disabled = !finalTranscript.trim();
                 } else {
-                    document.getElementById('transcriptionDisplay').textContent = 'Spoken objection will appear here...';
-                    document.getElementById('transcriptionDisplay').classList.add('empty');
+                    displayDiv.textContent = 'Spoken objection will appear here...';
+                    displayDiv.classList.add('empty');
                     document.getElementById('generateButton').disabled = true;
+                    document.getElementById('clearButton').disabled = true;
                 }
             };
 
@@ -254,6 +275,17 @@
             // Handle speech recognition end
             recognition.onend = function() {
                 if (isListening) {
+                    // Try to restart if we're still supposed to be listening
+                    // This handles cases where recognition stops unexpectedly
+                    try {
+                        recognition.start();
+                        showStatus('speechStatus', 'Listening... Speak now!', 'info');
+                    } catch (error) {
+                        console.error('Error restarting speech recognition:', error);
+                        showStatus('speechStatus', 'Speech recognition stopped', 'info');
+                        updateSpeechButton(false);
+                    }
+                } else {
                     showStatus('speechStatus', 'Speech recognition stopped', 'info');
                     updateSpeechButton(false);
                 }
@@ -262,8 +294,42 @@
             // Handle speech recognition errors
             recognition.onerror = function(event) {
                 console.error('Speech recognition error:', event.error);
-                showStatus('speechStatus', `Error: ${event.error}`, 'error');
-                updateSpeechButton(false);
+                
+                let errorMessage = 'Speech recognition error';
+                switch(event.error) {
+                    case 'no-speech':
+                        errorMessage = 'No speech detected. Please try again.';
+                        break;
+                    case 'audio-capture':
+                        errorMessage = 'Microphone access denied or unavailable.';
+                        break;
+                    case 'not-allowed':
+                        errorMessage = 'Microphone permission denied. Please allow microphone access.';
+                        break;
+                    case 'network':
+                        errorMessage = 'Network error. Please check your connection.';
+                        break;
+                    case 'aborted':
+                        errorMessage = 'Speech recognition was aborted.';
+                        break;
+                    case 'bad-grammar':
+                        errorMessage = 'Speech recognition grammar error.';
+                        break;
+                    default:
+                        errorMessage = `Speech recognition error: ${event.error}`;
+                }
+                
+                showStatus('speechStatus', errorMessage, 'error');
+                
+                // Don't auto-restart for certain errors that require user intervention
+                if (event.error === 'not-allowed' || event.error === 'audio-capture') {
+                    updateSpeechButton(false);
+                } else if (event.error === 'no-speech' && isListening) {
+                    // For no-speech errors, just show the message but keep listening
+                    // The recognition will automatically restart via onend handler
+                } else {
+                    updateSpeechButton(false);
+                }
             };
         }
 
@@ -349,12 +415,30 @@
         /**
          * Generate AI response using OpenAI API
          */
+        /**
+         * Sanitize text input to prevent potential issues
+         */
+        function sanitizeInput(input, maxLength = 2000) {
+            if (!input || typeof input !== 'string') return '';
+            
+            // Trim whitespace and limit length
+            let sanitized = input.trim().substring(0, maxLength);
+            
+            // Remove potentially problematic characters but keep basic punctuation
+            sanitized = sanitized.replace(/[<>]/g, '');
+            
+            return sanitized;
+        }
+
         async function generateResponse() {
             const apiKey = localStorage.getItem('openai_api_key');
-            const systemPrompt = document.getElementById('systemPrompt').value.trim();
-            const objection = currentTranscription.trim();
+            const rawSystemPrompt = document.getElementById('systemPrompt').value;
+            const rawObjection = currentTranscription;
 
-            // Validate inputs
+            // Sanitize and validate inputs
+            const systemPrompt = sanitizeInput(rawSystemPrompt, 1000);
+            const objection = sanitizeInput(rawObjection, 500);
+
             if (!apiKey) {
                 showStatus('apiKeyStatus', 'Please save your OpenAI API key first', 'error');
                 return;
@@ -363,6 +447,12 @@
             if (!objection) {
                 alert('No objection transcribed. Please speak an objection first.');
                 return;
+            }
+
+            if (systemPrompt.length === 0) {
+                if (!confirm('No system prompt provided. Continue with default instructions?')) {
+                    return;
+                }
             }
 
             // Update UI to show loading state
@@ -399,7 +489,29 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+                    const errorData = await response.json().catch(() => ({}));
+                    let errorMessage = 'API request failed';
+                    
+                    switch(response.status) {
+                        case 401:
+                            errorMessage = 'Invalid API key. Please check your OpenAI API key.';
+                            break;
+                        case 429:
+                            errorMessage = 'Rate limit exceeded. Please try again later.';
+                            break;
+                        case 400:
+                            errorMessage = errorData.error?.message || 'Bad request. Please check your input.';
+                            break;
+                        case 500:
+                        case 502:
+                        case 503:
+                            errorMessage = 'OpenAI service temporarily unavailable. Please try again.';
+                            break;
+                        default:
+                            errorMessage = errorData.error?.message || `API error: ${response.status} ${response.statusText}`;
+                    }
+                    
+                    throw new Error(errorMessage);
                 }
 
                 const data = await response.json();
@@ -413,11 +525,36 @@
 
             } catch (error) {
                 console.error('Error generating response:', error);
-                responseDiv.textContent = `Error: ${error.message}`;
+                
+                // Handle network errors separately
+                if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                    responseDiv.textContent = 'Network error. Please check your internet connection.';
+                } else {
+                    responseDiv.textContent = `Error: ${error.message}`;
+                }
                 responseDiv.classList.add('empty');
             } finally {
                 generateBtn.disabled = false;
             }
+        }
+
+        /**
+         * Clear the current transcription
+         */
+        function clearTranscription() {
+            currentTranscription = '';
+            const displayDiv = document.getElementById('transcriptionDisplay');
+            displayDiv.textContent = 'Spoken objection will appear here...';
+            displayDiv.classList.add('empty');
+            
+            // Clear AI response as well
+            const responseDiv = document.getElementById('aiResponse');
+            responseDiv.textContent = 'AI-generated response will appear here...';
+            responseDiv.classList.add('empty');
+            
+            // Disable buttons
+            document.getElementById('generateButton').disabled = true;
+            document.getElementById('clearButton').disabled = true;
         }
 
         /**
