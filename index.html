@@ -18,6 +18,79 @@
             color: #333;
             line-height: 1.6;
             padding: 20px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* Dark mode styles */
+        body.dark-mode {
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+        }
+
+        body.dark-mode .container {
+            background: #2d2d2d;
+            box-shadow: 0 2px 20px rgba(255,255,255,0.1);
+        }
+
+        body.dark-mode .section {
+            background: #3a3a3a;
+            border-color: #555;
+        }
+
+        body.dark-mode .display-area {
+            background: #2d2d2d;
+            border-color: #555;
+            color: #e0e0e0;
+        }
+
+        body.dark-mode textarea {
+            background: #2d2d2d;
+            border-color: #555;
+            color: #e0e0e0;
+        }
+
+        body.dark-mode input {
+            background: #2d2d2d;
+            border-color: #555;
+            color: #e0e0e0;
+        }
+
+        body.dark-mode select {
+            background: #2d2d2d;
+            border-color: #555;
+            color: #e0e0e0;
+        }
+
+        body.dark-mode .conversation-entry {
+            background: #404040;
+            border-left-color: #3498db;
+        }
+
+        .dark-mode-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            z-index: 1000;
+            transition: background-color 0.3s;
+        }
+
+        .dark-mode-toggle:hover {
+            background: #2980b9;
+        }
+
+        body.dark-mode .dark-mode-toggle {
+            background: #f39c12;
+        }
+
+        body.dark-mode .dark-mode-toggle:hover {
+            background: #e67e22;
         }
 
         .container {
@@ -142,9 +215,35 @@
             color: #004085;
             border: 1px solid #b3d7ff;
         }
+
+        .conversation-entry {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-left: 4px solid #3498db;
+            background: #f8f9fa;
+        }
+
+        .conversation-timestamp {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .conversation-objection {
+            font-weight: bold;
+            color: #e74c3c;
+            margin-bottom: 5px;
+        }
+
+        .conversation-response {
+            color: #27ae60;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
+    <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Toggle Dark Mode">🌙</button>
+    
     <div class="container">
         <h1>🎙️ Live Objection Handler</h1>
         
@@ -168,9 +267,19 @@
             <div id="transcriptionDisplay" class="display-area empty">Spoken objection will appear here...</div>
         </div>
 
-        <!-- System Prompt Configuration -->
+        <!-- Response Mode Configuration -->
         <div class="section">
-            <h2>⚙️ System Prompt (Instructions for AI)</h2>
+            <h2>⚙️ Response Configuration</h2>
+            <div style="margin-bottom: 15px;">
+                <label for="responseMode" style="display: block; margin-bottom: 5px; font-weight: bold;">Response Mode:</label>
+                <select id="responseMode" onchange="updateSystemPrompt()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+                    <option value="professional">Professional & Balanced</option>
+                    <option value="soft">Soft & Empathetic</option>
+                    <option value="assertive">Assertive & Direct</option>
+                    <option value="educational">Educational & Informative</option>
+                    <option value="custom">Custom (Edit Below)</option>
+                </select>
+            </div>
             <textarea id="systemPrompt" placeholder="Enter instructions for how the AI should respond to objections...">You are a helpful sales assistant. When given an objection, provide a thoughtful, professional response that addresses the concern while maintaining a positive tone. Keep responses concise and actionable.</textarea>
         </div>
 
@@ -178,7 +287,34 @@
         <div class="section">
             <h2>🤖 AI Response</h2>
             <div id="aiResponse" class="display-area empty">AI-generated response will appear here...</div>
-            <button id="generateButton" onclick="generateResponse()" style="margin-top: 10px;" disabled>Generate Response</button>
+            <div style="margin-top: 10px;">
+                <button id="generateButton" onclick="generateResponse()" disabled>Generate Response</button>
+                <button id="speakButton" onclick="speakResponse()" style="margin-left: 10px;" disabled>🔊 Speak Response</button>
+            </div>
+        </div>
+
+        <!-- Conversation History -->
+        <div class="section">
+            <h2>📝 Conversation History</h2>
+            <div id="conversationHistory" class="display-area empty" style="max-height: 300px; overflow-y: auto;">No conversations yet...</div>
+            <div style="margin-top: 10px;">
+                <button id="clearHistoryButton" onclick="clearHistory()" disabled>Clear History</button>
+                <button id="exportHistoryButton" onclick="exportHistory()" style="margin-left: 10px;" disabled>📥 Export History</button>
+            </div>
+        </div>
+
+        <!-- Keyboard Shortcuts Help -->
+        <div class="section" style="background: #f0f8ff;">
+            <h2>⌨️ Keyboard Shortcuts</h2>
+            <div style="font-size: 14px; color: #555; line-height: 1.8;">
+                <strong>Ctrl+L:</strong> Start/Stop Listening &nbsp;&nbsp;&nbsp;
+                <strong>Ctrl+G:</strong> Generate Response &nbsp;&nbsp;&nbsp;
+                <strong>Ctrl+S:</strong> Speak Response<br>
+                <strong>Ctrl+K:</strong> Clear Transcription &nbsp;&nbsp;&nbsp;
+                <strong>Ctrl+H:</strong> Clear History &nbsp;&nbsp;&nbsp;
+                <strong>Ctrl+E:</strong> Export History &nbsp;&nbsp;&nbsp;
+                <strong>Escape:</strong> Stop Speaking
+            </div>
         </div>
     </div>
 
@@ -187,12 +323,99 @@
         let recognition = null;
         let isListening = false;
         let currentTranscription = '';
+        let currentResponse = '';
+        let speechSynthesis = window.speechSynthesis;
+        let conversationHistory = [];
 
         // Initialize the application when the page loads
         document.addEventListener('DOMContentLoaded', function() {
             initializeSpeechRecognition();
             loadApiKey();
+            updateSystemPrompt(); // Set initial prompt
+            setupKeyboardShortcuts();
+            loadDarkModePreference();
         });
+
+        /**
+         * Setup keyboard shortcuts for common actions
+         */
+        function setupKeyboardShortcuts() {
+            document.addEventListener('keydown', function(event) {
+                // Don't trigger shortcuts when typing in input fields
+                if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+                    return;
+                }
+                
+                // Check for Ctrl/Cmd key combinations
+                if (event.ctrlKey || event.metaKey) {
+                    switch(event.key.toLowerCase()) {
+                        case 'l': // Ctrl+L: Toggle listening
+                            event.preventDefault();
+                            toggleSpeechRecognition();
+                            break;
+                        case 'g': // Ctrl+G: Generate response
+                            event.preventDefault();
+                            if (!document.getElementById('generateButton').disabled) {
+                                generateResponse();
+                            }
+                            break;
+                        case 's': // Ctrl+S: Speak response
+                            event.preventDefault();
+                            if (!document.getElementById('speakButton').disabled) {
+                                speakResponse();
+                            }
+                            break;
+                        case 'k': // Ctrl+K: Clear transcription
+                            event.preventDefault();
+                            if (!document.getElementById('clearButton').disabled) {
+                                clearTranscription();
+                            }
+                            break;
+                        case 'h': // Ctrl+H: Clear history
+                            event.preventDefault();
+                            if (!document.getElementById('clearHistoryButton').disabled) {
+                                clearHistory();
+                            }
+                            break;
+                        case 'e': // Ctrl+E: Export history
+                            event.preventDefault();
+                            if (!document.getElementById('exportHistoryButton').disabled) {
+                                exportHistory();
+                            }
+                            break;
+                    }
+                }
+                
+                // Escape key: Stop current speech
+                if (event.key === 'Escape') {
+                    speechSynthesis.cancel();
+                }
+            });
+            
+            // Show keyboard shortcuts help
+            showKeyboardShortcutsHelp();
+        }
+
+        /**
+         * Show keyboard shortcuts information
+         */
+        function showKeyboardShortcutsHelp() {
+            const helpText = `
+Keyboard Shortcuts:
+• Ctrl+L: Start/Stop Listening
+• Ctrl+G: Generate Response
+• Ctrl+S: Speak Response
+• Ctrl+K: Clear Transcription
+• Ctrl+H: Clear History
+• Ctrl+E: Export History
+• Escape: Stop Speaking
+            `;
+            
+            // Add help text to the page temporarily
+            setTimeout(() => {
+                console.log(helpText);
+            }, 1000);
+        }
 
         /**
          * Initialize the Web Speech API for speech recognition
@@ -310,7 +533,88 @@
         }
 
         /**
+<<<<<<< Updated upstream
          * Save the OpenAI API key to localStorage
+=======
+         * Toggle dark mode
+         */
+        function toggleDarkMode() {
+            const body = document.body;
+            const button = document.querySelector('.dark-mode-toggle');
+            
+            body.classList.toggle('dark-mode');
+            
+            if (body.classList.contains('dark-mode')) {
+                button.textContent = '☀️';
+                localStorage.setItem('darkMode', 'enabled');
+            } else {
+                button.textContent = '🌙';
+                localStorage.setItem('darkMode', 'disabled');
+            }
+        }
+
+        /**
+         * Load dark mode preference from localStorage
+         */
+        function loadDarkModePreference() {
+            const darkMode = localStorage.getItem('darkMode');
+            const body = document.body;
+            const button = document.querySelector('.dark-mode-toggle');
+            
+            if (darkMode === 'enabled') {
+                body.classList.add('dark-mode');
+                button.textContent = '☀️';
+            } else {
+                button.textContent = '🌙';
+            }
+        }
+
+        /**
+         * Update system prompt based on selected response mode
+         */
+        function updateSystemPrompt() {
+            const mode = document.getElementById('responseMode').value;
+            const promptTextarea = document.getElementById('systemPrompt');
+            
+            // Don't change if custom mode is selected and textarea has been modified
+            if (mode === 'custom') {
+                promptTextarea.readOnly = false;
+                return;
+            }
+            
+            const prompts = {
+                professional: "You are a professional sales assistant. When given an objection, provide a balanced, thoughtful response that addresses the concern while maintaining a positive and professional tone. Keep responses concise, actionable, and focused on finding solutions.",
+                
+                soft: "You are an empathetic sales consultant. When given an objection, respond with understanding and compassion. Acknowledge the customer's concerns genuinely, validate their feelings, and gently guide them toward a solution. Use warm, reassuring language and avoid being pushy.",
+                
+                assertive: "You are a confident sales professional. When given an objection, respond directly and assertively while remaining respectful. Address concerns head-on with facts and clear benefits. Be decisive in your language and confident in your recommendations.",
+                
+                educational: "You are an educational sales advisor. When given an objection, respond by teaching and informing the customer. Provide detailed explanations, share relevant facts, and help them understand the value proposition. Focus on educating rather than selling."
+            };
+            
+            promptTextarea.value = prompts[mode] || prompts.professional;
+            promptTextarea.readOnly = (mode !== 'custom');
+        }
+
+        /**
+         * Toggle API key visibility
+         */
+        function toggleApiKeyVisibility() {
+            const input = document.getElementById('apiKeyInput');
+            const button = document.querySelector('.toggle-visibility');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                button.textContent = '🙈';
+            } else {
+                input.type = 'password';
+                button.textContent = '👁️';
+            }
+        }
+
+        /**
+         * Save the Google AI API key to localStorage
+>>>>>>> Stashed changes
          */
         function saveApiKey() {
             const apiKey = document.getElementById('apiKeyInput').value.trim();
@@ -405,8 +709,18 @@
                 const data = await response.json();
                 
                 // Display the AI response
+<<<<<<< Updated upstream
                 if (data.choices && data.choices[0] && data.choices[0].message) {
                     responseDiv.textContent = data.choices[0].message.content;
+=======
+                if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
+                    currentResponse = data.candidates[0].content.parts[0].text;
+                    responseDiv.textContent = currentResponse;
+                    document.getElementById('speakButton').disabled = false;
+                    
+                    // Add to conversation history
+                    addToConversationHistory(objection, currentResponse);
+>>>>>>> Stashed changes
                 } else {
                     throw new Error('Unexpected response format from OpenAI API');
                 }
@@ -421,6 +735,178 @@
         }
 
         /**
+<<<<<<< Updated upstream
+=======
+         * Speak the AI response using text-to-speech
+         */
+        function speakResponse() {
+            if (!currentResponse) {
+                alert('No response to speak. Please generate a response first.');
+                return;
+            }
+
+            // Check if speech synthesis is supported
+            if (!('speechSynthesis' in window)) {
+                alert('Text-to-speech not supported in this browser.');
+                return;
+            }
+
+            // Stop any current speech
+            speechSynthesis.cancel();
+
+            // Create speech utterance
+            const utterance = new SpeechSynthesisUtterance(currentResponse);
+            
+            // Configure speech settings
+            utterance.rate = 0.9;     // Slightly slower for clarity
+            utterance.pitch = 1.0;    // Normal pitch
+            utterance.volume = 1.0;   // Full volume
+
+            // Update button during speech
+            const speakButton = document.getElementById('speakButton');
+            const originalText = speakButton.textContent;
+            
+            utterance.onstart = function() {
+                speakButton.textContent = '🔇 Stop Speaking';
+                speakButton.onclick = function() {
+                    speechSynthesis.cancel();
+                };
+            };
+            
+            utterance.onend = function() {
+                speakButton.textContent = originalText;
+                speakButton.onclick = speakResponse;
+            };
+            
+            utterance.onerror = function(event) {
+                console.error('Speech synthesis error:', event.error);
+                speakButton.textContent = originalText;
+                speakButton.onclick = speakResponse;
+                alert('Error speaking response: ' + event.error);
+            };
+
+            // Speak the response
+            speechSynthesis.speak(utterance);
+        }
+
+        /**
+         * Add a conversation to the history
+         */
+        function addToConversationHistory(objection, response) {
+            const timestamp = new Date().toLocaleString();
+            const entry = {
+                timestamp: timestamp,
+                objection: objection,
+                response: response
+            };
+            
+            conversationHistory.push(entry);
+            updateConversationDisplay();
+            
+            // Enable history buttons
+            document.getElementById('clearHistoryButton').disabled = false;
+            document.getElementById('exportHistoryButton').disabled = false;
+        }
+
+        /**
+         * Update the conversation history display
+         */
+        function updateConversationDisplay() {
+            const historyDiv = document.getElementById('conversationHistory');
+            
+            if (conversationHistory.length === 0) {
+                historyDiv.innerHTML = 'No conversations yet...';
+                historyDiv.classList.add('empty');
+                return;
+            }
+            
+            historyDiv.classList.remove('empty');
+            let historyHTML = '';
+            
+            // Show most recent conversations first
+            for (let i = conversationHistory.length - 1; i >= 0; i--) {
+                const entry = conversationHistory[i];
+                historyHTML += `
+                    <div class="conversation-entry">
+                        <div class="conversation-timestamp">${entry.timestamp}</div>
+                        <div class="conversation-objection">Objection: "${entry.objection}"</div>
+                        <div class="conversation-response">Response: "${entry.response}"</div>
+                    </div>
+                `;
+            }
+            
+            historyDiv.innerHTML = historyHTML;
+        }
+
+        /**
+         * Clear conversation history
+         */
+        function clearHistory() {
+            if (conversationHistory.length === 0) return;
+            
+            if (confirm('Are you sure you want to clear all conversation history?')) {
+                conversationHistory = [];
+                updateConversationDisplay();
+                document.getElementById('clearHistoryButton').disabled = true;
+                document.getElementById('exportHistoryButton').disabled = true;
+            }
+        }
+
+        /**
+         * Export conversation history as text file
+         */
+        function exportHistory() {
+            if (conversationHistory.length === 0) {
+                alert('No conversation history to export.');
+                return;
+            }
+            
+            let exportText = 'Live Objection Handler - Conversation History\n';
+            exportText += '='.repeat(50) + '\n\n';
+            
+            conversationHistory.forEach((entry, index) => {
+                exportText += `Conversation ${index + 1}\n`;
+                exportText += `Timestamp: ${entry.timestamp}\n`;
+                exportText += `Objection: "${entry.objection}"\n`;
+                exportText += `Response: "${entry.response}"\n`;
+                exportText += '-'.repeat(30) + '\n\n';
+            });
+            
+            // Create and download file
+            const blob = new Blob([exportText], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `objection-history-${new Date().toISOString().split('T')[0]}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+
+        /**
+         * Clear the current transcription
+         */
+        function clearTranscription() {
+            currentTranscription = '';
+            const displayDiv = document.getElementById('transcriptionDisplay');
+            displayDiv.textContent = 'Spoken objection will appear here...';
+            displayDiv.classList.add('empty');
+            
+            // Clear AI response as well
+            const responseDiv = document.getElementById('aiResponse');
+            responseDiv.textContent = 'AI-generated response will appear here...';
+            responseDiv.classList.add('empty');
+            currentResponse = '';
+            
+            // Disable buttons
+            document.getElementById('generateButton').disabled = true;
+            document.getElementById('clearButton').disabled = true;
+            document.getElementById('speakButton').disabled = true;
+        }
+
+        /**
+>>>>>>> Stashed changes
          * Show status messages to the user
          */
         function showStatus(elementId, message, type) {
