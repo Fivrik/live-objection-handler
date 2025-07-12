@@ -386,8 +386,8 @@
                 return;
             }
 
-            // Validate API key format (OpenAI keys start with 'sk-')
-            if (!apiKey.startsWith('sk-')) {
+            // Basic API key validation (check length and format)
+            if (apiKey.length < 20 || !apiKey.match(/^[a-zA-Z0-9\-_]+$/)) {
                 showStatus('apiKeyStatus', 'Invalid API key format', 'error');
                 return;
             }
