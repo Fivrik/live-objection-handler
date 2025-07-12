@@ -492,9 +492,21 @@
                     const errorData = await response.json().catch(() => ({}));
                     let errorMessage = 'API request failed';
                     
+                    console.log('API Error Details:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        errorData: errorData
+                    });
+                    
                     switch(response.status) {
                         case 401:
-                            errorMessage = 'Invalid API key. Please check your OpenAI API key.';
+                            if (errorData.error?.code === 'invalid_api_key') {
+                                errorMessage = 'Invalid API key. Please verify your OpenAI API key is correct and active.';
+                            } else if (errorData.error?.code === 'insufficient_quota') {
+                                errorMessage = 'API quota exceeded. Please check your OpenAI account billing.';
+                            } else {
+                                errorMessage = `Authentication failed: ${errorData.error?.message || 'Invalid API key'}`;
+                            }
                             break;
                         case 429:
                             errorMessage = 'Rate limit exceeded. Please try again later.';
