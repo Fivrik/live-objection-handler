@@ -117,6 +117,26 @@
             width: 300px;
         }
 
+        .api-key-container {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .toggle-visibility {
+            background: #95a5a6;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .toggle-visibility:hover {
+            background: #7f8c8d;
+        }
+
         .status {
             text-align: center;
             padding: 10px;
@@ -150,7 +170,10 @@
         
         <!-- API Key Configuration Section -->
         <div class="api-key-section">
-            <input type="password" id="apiKeyInput" placeholder="Enter your Google AI API Key">
+            <div class="api-key-container">
+                <input type="password" id="apiKeyInput" placeholder="Enter your Google AI API Key">
+                <button class="toggle-visibility" onclick="toggleApiKeyVisibility()">👁️</button>
+            </div>
             <button onclick="saveApiKey()">Save API Key</button>
             <div id="apiKeyStatus"></div>
         </div>
@@ -376,7 +399,23 @@
         }
 
         /**
-         * Save the OpenAI API key to localStorage
+         * Toggle API key visibility
+         */
+        function toggleApiKeyVisibility() {
+            const input = document.getElementById('apiKeyInput');
+            const button = document.querySelector('.toggle-visibility');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                button.textContent = '🙈';
+            } else {
+                input.type = 'password';
+                button.textContent = '👁️';
+            }
+        }
+
+        /**
+         * Save the Google AI API key to localStorage
          */
         function saveApiKey() {
             const apiKey = document.getElementById('apiKeyInput').value.trim();
