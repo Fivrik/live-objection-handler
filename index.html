@@ -168,9 +168,20 @@
             <div id="transcriptionDisplay" class="display-area empty">Spoken objection will appear here...</div>
         </div>
 
-        <!-- System Prompt Configuration -->
+        <!-- Response Mode Configuration -->
         <div class="section">
-            <h2>⚙️ System Prompt (Instructions for AI)</h2>
+            <h2>⚙️ Response Configuration</h2>
+            <div style="margin-bottom: 15px;">
+                <label for="responseMode" style="display: block; margin-bottom: 5px; font-weight: bold;">Response Mode:</label>
+                <select id="responseMode" onchange="updateSystemPrompt()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+                    <option value="professional">Professional & Balanced</option>
+                    <option value="soft">Soft & Empathetic</option>
+                    <option value="assertive">Assertive & Direct</option>
+                    <option value="educational">Educational & Informative</option>
+                    <option value="social">Social Expert & Coaching</option>
+                    <option value="custom">Custom (Edit Below)</option>
+                </select>
+            </div>
             <textarea id="systemPrompt" placeholder="Enter instructions for how the AI should respond to objections...">You are a helpful sales assistant. When given an objection, provide a thoughtful, professional response that addresses the concern while maintaining a positive tone. Keep responses concise and actionable.</textarea>
         </div>
 
@@ -192,6 +203,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             initializeSpeechRecognition();
             loadApiKey();
+            updateSystemPrompt(); // Set initial prompt
         });
 
         /**
@@ -307,6 +319,35 @@
                 button.textContent = 'Start Listening';
                 button.classList.remove('recording');
             }
+        }
+
+        /**
+         * Update system prompt based on selected response mode
+         */
+        function updateSystemPrompt() {
+            const mode = document.getElementById('responseMode').value;
+            const promptTextarea = document.getElementById('systemPrompt');
+            
+            // Don't change if custom mode is selected and textarea has been modified
+            if (mode === 'custom') {
+                promptTextarea.readOnly = false;
+                return;
+            }
+            
+            const prompts = {
+                professional: "You are a professional sales assistant. When given an objection, provide a balanced, thoughtful response that addresses the concern while maintaining a positive and professional tone. Keep responses concise, actionable, and focused on finding solutions.",
+                
+                soft: "You are an empathetic sales consultant. When given an objection, respond with understanding and compassion. Acknowledge the customer's concerns genuinely, validate their feelings, and gently guide them toward a solution. Use warm, reassuring language and avoid being pushy.",
+                
+                assertive: "You are a confident sales professional. When given an objection, respond directly and assertively while remaining respectful. Address concerns head-on with facts and clear benefits. Be decisive in your language and confident in your recommendations.",
+                
+                educational: "You are an educational sales advisor. When given an objection, respond by teaching and informing the customer. Provide detailed explanations, share relevant facts, and help them understand the value proposition. Focus on educating rather than selling.",
+                
+                social: "You are a professional social expert in interactions with people especially in conversations with people interviewing for a job or conversing with girls or other people that are friends or family. Provide detailed, structured advice on how to handle social situations, communication strategies, and interpersonal dynamics."
+            };
+            
+            promptTextarea.value = prompts[mode] || prompts.professional;
+            promptTextarea.readOnly = (mode !== 'custom');
         }
 
         /**
