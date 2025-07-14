@@ -533,17 +533,12 @@ Keyboard Shortcuts:
         }
 
         /**
-<<<<<<< Updated upstream
-         * Save the OpenAI API key to localStorage
-=======
          * Toggle dark mode
          */
         function toggleDarkMode() {
             const body = document.body;
             const button = document.querySelector('.dark-mode-toggle');
-            
             body.classList.toggle('dark-mode');
-            
             if (body.classList.contains('dark-mode')) {
                 button.textContent = '☀️';
                 localStorage.setItem('darkMode', 'enabled');
@@ -613,8 +608,7 @@ Keyboard Shortcuts:
         }
 
         /**
-         * Save the Google AI API key to localStorage
->>>>>>> Stashed changes
+         * Save the OpenAI API key to localStorage
          */
         function saveApiKey() {
             const apiKey = document.getElementById('apiKeyInput').value.trim();
@@ -709,10 +703,6 @@ Keyboard Shortcuts:
                 const data = await response.json();
                 
                 // Display the AI response
-<<<<<<< Updated upstream
-                if (data.choices && data.choices[0] && data.choices[0].message) {
-                    responseDiv.textContent = data.choices[0].message.content;
-=======
                 if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
                     currentResponse = data.candidates[0].content.parts[0].text;
                     responseDiv.textContent = currentResponse;
@@ -720,7 +710,6 @@ Keyboard Shortcuts:
                     
                     // Add to conversation history
                     addToConversationHistory(objection, currentResponse);
->>>>>>> Stashed changes
                 } else {
                     throw new Error('Unexpected response format from OpenAI API');
                 }
@@ -735,8 +724,6 @@ Keyboard Shortcuts:
         }
 
         /**
-<<<<<<< Updated upstream
-=======
          * Speak the AI response using text-to-speech
          */
         function speakResponse() {
@@ -906,7 +893,6 @@ Keyboard Shortcuts:
         }
 
         /**
->>>>>>> Stashed changes
          * Show status messages to the user
          */
         function showStatus(elementId, message, type) {
